@@ -1,0 +1,12 @@
+#folders
+data/hidden_data
+data/ctpub_json 
+data/ctrepo_500_sample_json
+data/ctrepo_json
+scripts/depr 
+scripts/hallucination 
+scripts/misc
+
+#files 
+scripts/.env 
+scripts/ct-llm-firebase-key.json 
