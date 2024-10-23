@@ -374,7 +374,7 @@ def run_generation_single_hf_models(message, hf_url, huggingface_token, temperat
         seed = 42,
         temperature=temperature,
         stream=False,
-        max_tokens=1000
+        max_tokens=3000
     )
     return chat_completion.choices[0].message.content
 
@@ -512,7 +512,7 @@ def run_evaluation_with_gpt4o(system_message, question, openai_token):
       seed = 42,
       temperature=0.0,
       stream=False,
-      max_tokens=1000
+      max_tokens=5000
     )
     return response.choices[0].message.content
 
@@ -537,3 +537,98 @@ def match_to_score(matched_pairs, remaining_reference_features, remaining_candid
         f1 = 2 * (precision * recall) / (precision + recall) # F1
 
     return {"precision": precision, "recall": recall, "f1": f1}
+
+################## Hallucination Calculation ##################
+
+def calculate_positive_hallucinations(reference_features, candidate_features, matched_features):
+    #Note: if both ref and cand are positively hallucinated in a single match, it is considered as 1 positive hallucination
+    positive_hallucinations = 0
+    
+    for ref, cand in matched_features:
+        # Check if the matched reference feature exists in the original reference_features or 
+        # the matched candidate feature exists in the original candidate_features 
+        if (ref not in reference_features) or (cand not in candidate_features):
+            positive_hallucinations += 1
+    
+    return positive_hallucinations
+
+
+def calculate_negative_hallucinations(reference_features, candidate_features, matched_features, 
+                                      remaining_reference_features, remaining_candidate_features):
+    negative_hallucinations = 0
+
+    # Track all matched reference and candidate features
+    matched_reference = [pair[0] for pair in matched_features]
+    matched_candidate = [pair[1] for pair in matched_features]
+    
+    # Negative hallucinations in reference features
+    for ref in reference_features:
+        if (ref not in matched_reference) and (ref not in remaining_reference_features):
+            negative_hallucinations += 1
+    
+    # Negative hallucinations in candidate features
+    for cand in candidate_features:
+        if (cand not in matched_candidate) and (cand not in remaining_candidate_features):
+            negative_hallucinations += 1
+    
+    return negative_hallucinations
+
+
+def calculate_multi_match_hallucinations(matched_features):
+    multi_match_hallucinations = 0
+    reference_match_count = {}
+    candidate_match_count = {}
+
+    # Count occurrences of each reference and candidate feature in the matches
+    for ref, cand in matched_features:
+        if ref not in reference_match_count:
+            reference_match_count[ref] = 0
+        reference_match_count[ref] += 1
+
+        if cand not in candidate_match_count:
+            candidate_match_count[cand] = 0
+        candidate_match_count[cand] += 1
+    
+    # Detect multi-matches for reference features
+    for ref, count in reference_match_count.items():
+        if count > 1:
+            multi_match_hallucinations += count - 1 ##### <- assuming one match is correct and then the rest are hallucinations
+
+    # Detect multi-matches for candidate features
+    for cand, count in candidate_match_count.items():
+        if count > 1:
+            multi_match_hallucinations += count - 1 ##### <- assuming one match is correct and then the rest are hallucinations
+    
+    return multi_match_hallucinations
+
+
+def calculate_correct_matches(matched_features, positive_hallucinations, multi_match_hallucinations):
+    correct_matches = len(matched_features) - positive_hallucinations - multi_match_hallucinations
+    return correct_matches
+
+
+def calculate_hallucination(reference_features, candidate_features, matching_info):
+    matched_features = matching_info['matched_features']
+    remaining_reference_features = matching_info['remaining_reference_features']
+    remaining_candidate_features = matching_info['remaining_candidate_features']
+
+    # Calculate positive hallucinations
+    positive_hallucinations = calculate_positive_hallucinations(reference_features, candidate_features, matched_features)
+    
+    # Calculate negative hallucinations
+    negative_hallucinations = calculate_negative_hallucinations(reference_features, candidate_features, matched_features, remaining_reference_features, remaining_candidate_features)
+
+    # Calculate multi-match hallucinations
+    multi_match_hallucinations = calculate_multi_match_hallucinations(matched_features)
+    
+    # Calculate correct matches
+    correct_matches = calculate_correct_matches(matched_features, positive_hallucinations, multi_match_hallucinations)
+
+    return (positive_hallucinations, negative_hallucinations, multi_match_hallucinations, correct_matches)
+    
+    # return {
+    #     "positive_hallucinations": positive_hallucinations,
+    #     "negative_hallucinations": negative_hallucinations,
+    #     "multi_match_hallucinations": multi_match_hallucinations,
+    #     "correct_matches": correct_matches
+    # }

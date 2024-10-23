@@ -3,9 +3,11 @@ data/hidden_data
 data/ctpub_json 
 data/ctrepo_500_sample_json
 data/ctrepo_json
-scripts/depr 
+scripts/depr
+scripts/biobert_embedding/logs 
 scripts/hallucination 
 scripts/misc
+ctbench_rag/
 
 #files 
 scripts/.env 
